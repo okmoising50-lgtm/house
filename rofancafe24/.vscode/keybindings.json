@@ -1,0 +1,8 @@
+[
+  {
+    "key": "ctrl+shift+u",
+    "command": "sftp.upload.activeFile",
+    "when": "editorTextFocus && resourceExtname == '.py' && resourceFilename == 'GCP_CRAWLER.py'"
+  }
+]
+

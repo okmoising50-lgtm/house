@@ -1,0 +1,22 @@
+{
+  "files.associations": {
+    "sftp.json": "jsonc"
+  },
+  "files.watcherExclude": {
+    "**/GCP_CRAWLER.py": false
+  },
+  "[python]": {
+    "files.associations": {
+      "GCP_CRAWLER.py": "python"
+    }
+  },
+  "emeraldwalk.runonsave": {
+    "commands": [
+      {
+        "match": "tracker/GCP_CRAWLER.py",
+        "cmd": "python ${workspaceFolder}/upload_to_gcp.py",
+        "runIn": "terminal"
+      }
+    ]
+  }
+}

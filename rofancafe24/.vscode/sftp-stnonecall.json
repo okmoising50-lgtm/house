@@ -1,0 +1,22 @@
+{
+  "name": "stnonecall",
+  "host": "45.120.69.179",
+  "protocol": "sftp",
+  "port": 22,
+  "username": "root",
+  "password": "dptmxldps12@@",
+  "remotePath": "/root/mailcenter/sound/",
+  "uploadOnSave": true,
+  "context": "./tracker",
+  "syncMode": "update",
+  "ignore": [
+    "**/*",
+    "!GCP_CRAWLER.py"
+  ],
+  "watcher": {
+    "files": "GCP_CRAWLER.py",
+    "autoUpload": true,
+    "autoDelete": false
+  }
+}
+

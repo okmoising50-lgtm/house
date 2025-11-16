@@ -1,0 +1,15 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Upload GCP_CRAWLER.py to stnonecall (SFTP)",
+      "type": "shell",
+      "command": "echo 'Use VS Code Command Palette: SFTP: Upload Active File, then select stnonecall profile'",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
+    }
+  ]
+}

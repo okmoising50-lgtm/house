@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>웹 모니터링 관리자 - 카페24</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <style>
+        body { background-color: #f8f9fa; padding: 20px; }
+        .container { max-width: 1400px; }
+        .card { margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .site-item { padding: 15px; border-bottom: 1px solid #e9ecef; }
+        .site-item:hover { background-color: #f8f9fa; }
+        .badge-custom { font-size: 0.85rem; padding: 5px 10px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1><i class="bi bi-globe"></i> 웹 모니터링 시스템 (카페24)</h1>
+            <div>
+                <a href="index.html" class="btn btn-secondary me-2"><i class="bi bi-house"></i> 홈</a>
+                <a href="changes.html" class="btn btn-info me-2"><i class="bi bi-clock-history"></i> 변화 로그</a>
+                <a href="site_logs.html" class="btn btn-primary me-2"><i class="bi bi-list-check"></i> 사이트별 로그</a>
+                <a href="attendance.html" class="btn btn-warning me-2"><i class="bi bi-calendar-check"></i> 일자별 출근부</a>
+                <a href="reservation.html" class="btn btn-success me-2"><i class="bi bi-calendar-event"></i> 예약 관리</a>
+                <button class="btn btn-warning me-2" id="globalNotificationBtn" onclick="toggleGlobalNotification()">
+                    <i class="bi bi-bell" id="globalNotificationIcon"></i> <span id="globalNotificationText">전체 알림 ON</span>
+                </button>
+                <button class="btn btn-primary" onclick="showAddModal()"><i class="bi bi-plus-circle"></i> 새 사이트 추가</button>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi bi-list-ul"></i> 모니터링 사이트 목록</h5>
+            </div>
+            <div class="card-body p-0" id="siteList">
+                <div class="text-center p-5"><div class="spinner-border text-primary"></div></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 사이트 추가/수정 모달 -->
+    <div class="modal fade" id="siteModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalTitle">새 사이트 추가</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="siteForm">
+                        <input type="hidden" id="siteId" name="site_id" value="0">
+                        <div class="mb-3">
+                            <label for="siteName" class="form-label">사이트 이름 <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="siteName" name="site_name" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="siteUrl" class="form-label">사이트 URL <span class="text-danger">*</span></label>
+                            <input type="url" class="form-control" id="siteUrl" name="site_url" placeholder="https://example.com" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="siteType" class="form-label">사이트 유형 <span class="text-danger">*</span></label>
+                            <select class="form-select" id="siteType" name="site_type" required>
+                                <option value="normal">일반 (수동 선택자 입력)</option>
+                                <option value="sexbam">섹밤유형 (제목+전화번호+본문 자동 추출)</option>
+                            </select>
+                            <small class="form-text text-muted">섹밤유형 선택 시 제목, 전화번호, 본문만 자동으로 추출합니다</small>
+                        </div>
+                        <div class="mb-3" id="targetSelectorGroup">
+                            <label for="targetSelector" class="form-label">CSS 선택자</label>
+                            <input type="text" class="form-control" id="targetSelector" name="target_selector" value="body" placeholder="body, #main, .content, article">
+                            <small class="form-text text-muted">일반 유형일 때만 사용됩니다. 예: body, article, .rd_body .clear</small>
+                        </div>
+                        <div class="mb-3">
+                            <label for="checkInterval" class="form-label">체크 주기 (초)</label>
+                            <input type="number" class="form-control" id="checkInterval" name="check_interval" value="5" min="1" required>
+                            <small class="form-text text-muted">GCP 크롤러가 이 사이트를 체크하는 간격 (최소 1초, 권장: 5초 이상)</small>
+                        </div>
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="isActive" name="is_active" value="1" checked>
+                                <label class="form-check-label" for="isActive">활성화</label>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="followRedirect" name="follow_redirect" value="1" checked>
+                                <label class="form-check-label" for="followRedirect">리다이렉트 자동 추적</label>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="enableNotification" name="enable_notification" value="1" checked>
+                                <label class="form-check-label" for="enableNotification">변화 감지 시 알림 표시</label>
+                                <small class="form-text text-muted d-block">브라우저 알림을 통해 변화를 즉시 알려줍니다</small>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+                    <button type="button" class="btn btn-primary" onclick="saveSite()">저장</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let siteModal;
+        let globalNotificationEnabled = true;
+        
+        $(document).ready(function() {
+            siteModal = new bootstrap.Modal(document.getElementById('siteModal'));
+            loadNotificationSettings();
+            loadSites();
+        });
+        
+        function loadNotificationSettings() {
+            $.ajax({
+                url: 'api/get_notification_settings.php',
+                method: 'GET',
+                dataType: 'json',
+                success: function(response) {
+                    if (response && response.success && response.data) {
+                        globalNotificationEnabled = response.data.global_enabled == 1;
+                        updateGlobalNotificationUI();
+                    }
+                },
+                error: function() {
+                    console.error('알림 설정 로드 실패');
+                }
+            });
+        }
+        
+        function updateGlobalNotificationUI() {
+            const btn = $('#globalNotificationBtn');
+            const icon = $('#globalNotificationIcon');
+            const text = $('#globalNotificationText');
+            
+            if (globalNotificationEnabled) {
+                btn.removeClass('btn-secondary').addClass('btn-warning');
+                icon.removeClass('bi-bell-slash').addClass('bi-bell-fill');
+                text.text('전체 알림 ON');
+            } else {
+                btn.removeClass('btn-warning').addClass('btn-secondary');
+                icon.removeClass('bi-bell-fill').addClass('bi-bell-slash');
+                text.text('전체 알림 OFF');
+            }
+        }
+        
+        function toggleGlobalNotification() {
+            const newState = !globalNotificationEnabled;
+            $.ajax({
+                url: 'api/set_global_notification.php',
+                method: 'POST',
+                data: { enabled: newState ? 1 : 0 },
+                dataType: 'json',
+                success: function(response) {
+                    if (response && response.success) {
+                        globalNotificationEnabled = newState;
+                        updateGlobalNotificationUI();
+                        alert('전체 알림이 ' + (newState ? '켜졌습니다' : '꺼졌습니다') + '.');
+                    } else {
+                        alert('설정 변경에 실패했습니다.');
+                    }
+                },
+                error: function() {
+                    alert('서버 오류가 발생했습니다.');
+                }
+            });
+        }
+        
+        function toggleSiteActive(siteId, newState) {
+            $.ajax({
+                url: 'api/toggle_active.php',
+                method: 'POST',
+                data: { site_id: siteId, is_active: newState },
+                dataType: 'json',
+                success: function(response) {
+                    if (response && response.success) {
+                        loadSites();
+                    } else {
+                        alert('활성 상태 변경에 실패했습니다.');
+                    }
+                },
+                error: function() {
+                    alert('서버 오류가 발생했습니다.');
+                }
+            });
+        }
+
+        function toggleSiteNotification(siteId, newState) {
+            $.ajax({
+                url: 'api/toggle_notification.php',
+                method: 'POST',
+                data: { site_id: siteId, enable: newState },
+                dataType: 'json',
+                success: function(response) {
+                    if (response && response.success) {
+                        loadSites();
+                    } else {
+                        alert('알림 설정 변경에 실패했습니다.');
+                    }
+                },
+                error: function() {
+                    alert('서버 오류가 발생했습니다.');
+                }
+            });
+        }
+
+        function loadSites() {
+            $.ajax({
+                url: 'api/get_sites.php',
+                method: 'GET',
+                dataType: 'json',
+                success: function(response) {
+                    if (response && response.success) {
+                        renderSites(response.data);
+                    } else {
+                        $('#siteList').html('<div class="alert alert-danger m-3">데이터 로딩 실패: ' + (response?.message || '알 수 없는 오류') + '</div>');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('AJAX Error:', error);
+                    $('#siteList').html('<div class="alert alert-danger m-3">서버 연결 실패: ' + error + '<br>상세: ' + (xhr.responseText || '') + '</div>');
+                }
+            });
+        }
+
+        function renderSites(sites) {
+            if (!sites || sites.length === 0) {
+                $('#siteList').html('<div class="text-center p-5 text-muted">등록된 사이트가 없습니다.<br><button class="btn btn-primary mt-3" onclick="showAddModal()">새 사이트 추가</button></div>');
+                return;
+            }
+            let html = '';
+            sites.forEach(function(site) {
+                const statusBadge = site.is_active == '1' ? '<span class="badge" style="background-color: #5dade2; color: white;" class="badge-custom">활성</span>' : '<span class="badge bg-secondary badge-custom">비활성</span>';
+                const notificationBadge = site.enable_notification == '1' ? '<span class="badge bg-info badge-custom"><i class="bi bi-bell-fill"></i> 알림ON</span>' : '<span class="badge bg-secondary badge-custom"><i class="bi bi-bell-slash"></i> 알림OFF</span>';
+                const lastCheck = site.last_check_time || '아직 체크되지 않음';
+                html += `
+                    <div class="site-item">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div class="flex-grow-1">
+                                <h5 class="mb-1">${escapeHtml(site.site_name)} ${statusBadge} ${notificationBadge}</h5>
+                                <p class="mb-1"><i class="bi bi-link-45deg"></i> <a href="${escapeHtml(site.site_url)}" target="_blank">${escapeHtml(site.site_url)}</a></p>
+                                <p class="mb-1"><small><i class="bi bi-bullseye"></i> 유형: <span class="badge bg-info">${site.site_type === 'sexbam' ? '섹밤유형' : '일반'}</span> | 선택자: <code>${escapeHtml(site.target_selector)}</code> | 주기: ${site.check_interval}초</small></p>
+                                <p class="mb-1"><small class="text-muted">마지막 체크: ${lastCheck}</small></p>
+                                <p class="mb-0"><small class="text-muted">사이트 변화 시간: ${site.last_change_time || '변화 없음'}</small></p>
+                            </div>
+                            <div class="ms-3">
+                                <button class="btn btn-sm ${site.is_active == '1' ? 'btn-info' : 'btn-outline-secondary'}" onclick="toggleSiteActive(${site.site_id}, ${site.is_active == '1' ? 0 : 1})" title="활성 ${site.is_active == '1' ? '끄기' : '켜기'}" style="${site.is_active == '1' ? 'background-color: #5dade2; border-color: #5dade2; color: white;' : ''}">
+                                    <i class="bi ${site.is_active == '1' ? 'bi-toggle-on' : 'bi-toggle-off'}"></i>
+                                </button>
+                                <button class="btn btn-sm ${site.enable_notification == '1' ? 'btn-info' : 'btn-outline-secondary'}" onclick="toggleSiteNotification(${site.site_id}, ${site.enable_notification == '1' ? 0 : 1})" title="알림 ${site.enable_notification == '1' ? '끄기' : '켜기'}">
+                                    <i class="bi ${site.enable_notification == '1' ? 'bi-bell-fill' : 'bi-bell-slash'}"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-primary" onclick="editSite(${site.site_id})" title="수정">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger" onclick="deleteSite(${site.site_id}, '${escapeHtml(site.site_name)}')" title="삭제">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            $('#siteList').html(html);
+        }
+
+        function showAddModal() {
+            $('#siteForm')[0].reset();
+            $('#siteId').val('0');
+            $('#modalTitle').text('새 사이트 추가');
+            $('#isActive').prop('checked', true);
+            $('#followRedirect').prop('checked', true);
+            $('#enableNotification').prop('checked', true);
+            $('#checkInterval').val('5');
+            $('#siteType').val('normal');
+            $('#targetSelector').val('body');
+            updateSelectorVisibility();
+            siteModal.show();
+        }
+        
+        function updateSelectorVisibility() {
+            const siteType = $('#siteType').val();
+            if (siteType === 'sexbam') {
+                $('#targetSelectorGroup').hide();
+            } else {
+                $('#targetSelectorGroup').show();
+            }
+        }
+        
+        // 사이트 유형 변경 시 선택자 필드 표시/숨김
+        $(document).on('change', '#siteType', function() {
+            updateSelectorVisibility();
+        });
+
+        function editSite(siteId) {
+            $.ajax({
+                url: 'api/get_site.php',
+                method: 'GET',
+                data: { site_id: siteId },
+                dataType: 'json',
+                success: function(response) {
+                    if (response && response.success && response.data) {
+                        const site = response.data;
+                        $('#siteId').val(site.site_id);
+                        $('#siteName').val(site.site_name);
+                        $('#siteUrl').val(site.site_url);
+                        $('#siteType').val(site.site_type || 'normal');
+                        $('#targetSelector').val(site.target_selector);
+                        $('#checkInterval').val(site.check_interval);
+                        $('#isActive').prop('checked', site.is_active == '1');
+                        $('#followRedirect').prop('checked', site.follow_redirect == '1');
+                        $('#enableNotification').prop('checked', (site.enable_notification == '1' || site.enable_notification == 1));
+                        updateSelectorVisibility();
+                        $('#modalTitle').text('사이트 수정');
+                        siteModal.show();
+                    } else {
+                        alert('사이트 정보를 불러올 수 없습니다.');
+                    }
+                },
+                error: function() {
+                    alert('서버 오류가 발생했습니다.');
+                }
+            });
+        }
+
+        function saveSite() {
+            const formData = {
+                site_id: $('#siteId').val(),
+                site_name: $('#siteName').val(),
+                site_url: $('#siteUrl').val(),
+                site_type: $('#siteType').val() || 'normal',
+                target_selector: $('#targetSelector').val() || 'body',
+                check_interval: Math.max(1, parseInt($('#checkInterval').val()) || 5),
+                is_active: $('#isActive').is(':checked') ? 1 : 0,
+                follow_redirect: $('#followRedirect').is(':checked') ? 1 : 0,
+                enable_notification: $('#enableNotification').is(':checked') ? 1 : 0
+            };
+
+            if (!formData.site_name || !formData.site_url) {
+                alert('사이트 이름과 URL은 필수입니다.');
+                return;
+            }
+
+            $.ajax({
+                url: 'api/save_site.php',
+                method: 'POST',
+                data: formData,
+                dataType: 'json',
+                success: function(response) {
+                    if (response && response.success) {
+                        siteModal.hide();
+                        loadSites();
+                        alert('저장되었습니다.');
+                    } else {
+                        alert('저장 실패: ' + (response?.message || '알 수 없는 오류'));
+                    }
+                },
+                error: function(xhr, status, error) {
+                    let errorMsg = '서버 오류가 발생했습니다.';
+                    try {
+                        const response = JSON.parse(xhr.responseText);
+                        if (response && response.message) {
+                            errorMsg = response.message;
+                        }
+                    } catch (e) {
+                        if (xhr.responseText) {
+                            errorMsg = xhr.responseText.substring(0, 200);
+                        } else {
+                            errorMsg = error || status;
+                        }
+                    }
+                    alert('서버 오류: ' + errorMsg);
+                    console.error('AJAX Error:', {status: status, error: error, response: xhr.responseText});
+                }
+            });
+        }
+
+        function deleteSite(siteId, siteName) {
+            if (!confirm('정말로 "' + siteName + '" 사이트를 삭제하시겠습니까?')) {
+                return;
+            }
+
+            $.ajax({
+                url: 'api/delete_site.php',
+                method: 'POST',
+                data: { site_id: siteId },
+                dataType: 'json',
+                success: function(response) {
+                    if (response && response.success) {
+                        loadSites();
+                        alert('삭제되었습니다.');
+                    } else {
+                        alert('삭제 실패: ' + (response?.message || '알 수 없는 오류'));
+                    }
+                },
+                error: function() {
+                    alert('서버 오류가 발생했습니다.');
+                }
+            });
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>
+
+

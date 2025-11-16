@@ -1,0 +1,177 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  웹 모니터링 시스템 설치 가이드 (카페24 + GCP)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+┌─────────────────────────────────────────────────┐
+│ STEP 1: 카페24 FTP 업로드                       │
+└─────────────────────────────────────────────────┘
+
+1. FTP 클라이언트로 rofan.mycafe24.com 접속
+   - Host: rofan.mycafe24.com
+   - Port: 22 (SFTP)
+   - Username: rofan
+   - Password: wlsfkaus1!
+
+2. /public_html/ 디렉토리로 이동
+
+3. tracker 폴더 생성
+
+4. tracker 폴더 안에 모든 파일 업로드:
+   ✓ index.html
+   ✓ admin.html
+   ✓ logs.html
+   ✓ config.php
+   ✓ monitor_lib.php
+   ✓ database.sql
+   ✓ .htaccess
+   ✓ api/ 폴더 (하위 10개 PHP 파일 포함)
+
+┌─────────────────────────────────────────────────┐
+│ STEP 2: 카페24 데이터베이스 설정                │
+└─────────────────────────────────────────────────┘
+
+1. 카페24 phpMyAdmin 접속
+   https://rofan.mycafe24.com/phpMyAdmin
+
+2. database.sql 파일 열기 (메모장으로)
+
+3. 전체 내용 복사
+
+4. phpMyAdmin의 SQL 탭에서 붙여넣기 → 실행
+
+5. 테이블 4개 생성 확인:
+   ✓ monitor_sites
+   ✓ monitor_snapshots
+   ✓ monitor_changes
+   ✓ monitor_redirects
+
+┌─────────────────────────────────────────────────┐
+│ STEP 3: config.php 수정 (카페24)                │
+└─────────────────────────────────────────────────┘
+
+FTP로 config.php 편집:
+
+1. DB 비밀번호 수정:
+   define('DB_PASS', 'your_db_password');
+   → 카페24 DB 비밀번호 입력
+
+2. API 토큰 생성 및 수정:
+   define('API_TOKEN', 'your-secret-token-...');
+   → 임의의 긴 문자열로 변경 (보안 중요!)
+   
+   예시: 'rofan-tracker-2025-Ab3dF9gH2kL5nP8qR'
+
+3. GCP IP 추가:
+   define('ALLOWED_IPS', ['45.120.69.179', '127.0.0.1']);
+   → GCP 서버 IP 확인 후 추가
+
+┌─────────────────────────────────────────────────┐
+│ STEP 4: GCP 서버 크롤러 배포                     │
+└─────────────────────────────────────────────────┘
+
+1. GCP 서버 접속:
+   ssh root@45.120.69.179
+
+2. 디렉토리 생성:
+   cd /root/mailcenter/sound
+   mkdir -p tracker_gcp
+   cd tracker_gcp
+
+3. 크롤러 파일 업로드:
+   GCP_CRAWLER.py 파일을 tracker_gcp 폴더로 업로드
+
+4. Python 패키지 설치:
+   pip3 install requests beautifulsoup4 lxml
+
+5. GCP_CRAWLER.py 수정:
+   nano GCP_CRAWLER.py
+   
+   수정 내용:
+   - CAFE24_API_URL = 'https://rofan.mycafe24.com/tracker/api/external_api.php'
+   - API_TOKEN = 'config.php와 동일한 토큰'
+
+6. 실행 권한 부여:
+   chmod +x GCP_CRAWLER.py
+
+7. 테스트 실행:
+   python3 GCP_CRAWLER.py
+   
+   정상 작동 확인 후 Ctrl+C로 중단
+
+8. 백그라운드 실행:
+   nohup python3 GCP_CRAWLER.py > crawler.log 2>&1 &
+
+9. 프로세스 확인:
+   ps aux | grep GCP_CRAWLER
+
+10. 로그 확인:
+    tail -f crawler.log
+
+┌─────────────────────────────────────────────────┐
+│ STEP 5: 웹 접속 및 테스트                       │
+└─────────────────────────────────────────────────┘
+
+1. 메인 페이지:
+   https://rofan.mycafe24.com/tracker/
+
+2. 관리자 페이지:
+   https://rofan.mycafe24.com/tracker/admin.html
+
+3. 변화 로그:
+   https://rofan.mycafe24.com/tracker/logs.html
+
+4. 테스트 사이트 추가:
+   - 관리자 페이지에서 "새 사이트 추가" 클릭
+   - URL 입력 (예: https://example.com)
+   - 체크 주기: 5초 선택
+   - 저장
+
+5. GCP 크롤러 로그 확인:
+   tail -f /root/mailcenter/sound/tracker_gcp/crawler.log
+
+┌─────────────────────────────────────────────────┐
+│ STEP 6: 보안 설정 (필수!)                       │
+└─────────────────────────────────────────────────┘
+
+1. API 토큰 반드시 변경
+   - config.php와 GCP_CRAWLER.py 동일하게
+
+2. GCP 서버 IP 확인:
+   curl ifconfig.me
+   
+   결과를 config.php의 ALLOWED_IPS에 추가
+
+3. .htaccess 파일 업로드 확인
+   - 설정 파일 직접 접근 차단
+
+┌─────────────────────────────────────────────────┐
+│ 문제 해결                                        │
+└─────────────────────────────────────────────────┘
+
+❌ "Unauthorized" 에러
+   → config.php와 GCP_CRAWLER.py의 API_TOKEN 일치 확인
+   → ALLOWED_IPS에 GCP IP 추가 확인
+
+❌ DB 연결 오류
+   → config.php의 DB_PASS 확인
+   → phpMyAdmin으로 DB 접속 테스트
+
+❌ 크롤러 작동 안 함
+   → crawler.log 확인
+   → Python 패키지 재설치
+   → API URL 확인
+
+❌ 사이트 목록 안 보임
+   → 브라우저 개발자 도구(F12) → Console 탭 확인
+   → Network 탭에서 API 응답 확인
+
+┌─────────────────────────────────────────────────┐
+│ 완료!                                            │
+└─────────────────────────────────────────────────┘
+
+이제 5초 간격으로 자동 모니터링이 시작됩니다.
+변화가 감지되면 "변화 로그" 페이지에서 확인할 수 있습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
