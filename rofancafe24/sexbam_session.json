@@ -1,0 +1,46 @@
+{
+  "url": "https://sexbam43.top/index.php?mid=main_04&act=dispMemberLoginForm",
+  "cookies": [
+    {
+      "name": "_cfuvid",
+      "value": "DRzA0Tl2KlTQORrlA9Mhc_SCb9WqQL0w2omq7Oh0gKc-1767018638707-0.0.1.1-604800000",
+      "domain": ".challenges.cloudflare.com",
+      "path": "/",
+      "expires": -1,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "None"
+    },
+    {
+      "name": "PHPSESSID",
+      "value": "nuiddsljlsllm9khslafd035s4",
+      "domain": "sexbam43.top",
+      "path": "/",
+      "expires": -1,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "None"
+    },
+    {
+      "name": "mobile",
+      "value": "false",
+      "domain": "sexbam43.top",
+      "path": "/",
+      "expires": -1,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "None"
+    },
+    {
+      "name": "user-agent",
+      "value": "76f322cce4917300bde3ccf1bc39ec40",
+      "domain": "sexbam43.top",
+      "path": "/",
+      "expires": -1,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "None"
+    }
+  ],
+  "saved_at": "2025-12-29 23:35:49"
+}

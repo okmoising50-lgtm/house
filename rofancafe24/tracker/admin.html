@@ -64,14 +64,22 @@
                             <label for="siteType" class="form-label">사이트 유형 <span class="text-danger">*</span></label>
                             <select class="form-select" id="siteType" name="site_type" required>
                                 <option value="normal">일반 (수동 선택자 입력)</option>
-                                <option value="sexbam">섹밤유형 (제목+전화번호+본문 자동 추출)</option>
+                                <option value="sexbam">섹밤유형 (자동 추출)</option>
                             </select>
-                            <small class="form-text text-muted">섹밤유형 선택 시 제목, 전화번호, 본문만 자동으로 추출합니다</small>
+                            <small class="form-text text-muted">섹밤유형: 출근부 추출방식에 따라 제목 또는 본문에서 자동 추출</small>
                         </div>
                         <div class="mb-3" id="targetSelectorGroup">
                             <label for="targetSelector" class="form-label">CSS 선택자</label>
                             <input type="text" class="form-control" id="targetSelector" name="target_selector" value="body" placeholder="body, #main, .content, article">
                             <small class="form-text text-muted">일반 유형일 때만 사용됩니다. 예: body, article, .rd_body .clear</small>
+                        </div>
+                        <div class="mb-3" id="extractionModeGroup">
+                            <label for="extractionMode" class="form-label">출근부 추출방식</label>
+                            <select class="form-select" id="extractionMode" name="attendance_extraction_mode">
+                                <option value="both">제목+본문 (로그인 X)</option>
+                                <option value="title">제목만 - og:title (로그인 X)</option>
+                            </select>
+                            <small class="form-text text-muted">섹밤유형 사이트에서 출근부 데이터를 어디서 추출할지 선택</small>
                         </div>
                         <div class="mb-3">
                             <label for="checkInterval" class="form-label">체크 주기 (초)</label>
@@ -282,16 +290,19 @@
             $('#checkInterval').val('5');
             $('#siteType').val('normal');
             $('#targetSelector').val('body');
+            $('#extractionMode').val('both');
             updateSelectorVisibility();
             siteModal.show();
         }
-        
+
         function updateSelectorVisibility() {
             const siteType = $('#siteType').val();
             if (siteType === 'sexbam') {
                 $('#targetSelectorGroup').hide();
+                $('#extractionModeGroup').show();
             } else {
                 $('#targetSelectorGroup').show();
+                $('#extractionModeGroup').hide();
             }
         }
         
@@ -314,6 +325,7 @@
                         $('#siteUrl').val(site.site_url);
                         $('#siteType').val(site.site_type || 'normal');
                         $('#targetSelector').val(site.target_selector);
+                        $('#extractionMode').val(site.attendance_extraction_mode || 'both');
                         $('#checkInterval').val(site.check_interval);
                         $('#isActive').prop('checked', site.is_active == '1');
                         $('#followRedirect').prop('checked', site.follow_redirect == '1');
@@ -338,6 +350,7 @@
                 site_url: $('#siteUrl').val(),
                 site_type: $('#siteType').val() || 'normal',
                 target_selector: $('#targetSelector').val() || 'body',
+                attendance_extraction_mode: $('#extractionMode').val() || 'both',
                 check_interval: Math.max(1, parseInt($('#checkInterval').val()) || 5),
                 is_active: $('#isActive').is(':checked') ? 1 : 0,
                 follow_redirect: $('#followRedirect').is(':checked') ? 1 : 0,

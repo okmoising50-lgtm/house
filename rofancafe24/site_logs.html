@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>사이트별 로그 - 카페24</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <style>
+        body { background-color: #f8f9fa; padding: 20px; }
+        .container { max-width: 1600px; }
+        .card { margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .site-list-item { 
+            padding: 15px; 
+            border-bottom: 1px solid #e9ecef; 
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .site-list-item:hover { background-color: #f8f9fa; }
+        .site-list-item.active { background-color: #e7f3ff; border-left: 4px solid #0d6efd; }
+        .change-item { border-bottom: 1px solid #e9ecef; padding: 20px; }
+        .change-item.unread { background-color: #fff3cd; }
+        .diff-content { background-color: #f8f9fa; padding: 15px; border-radius: 5px; max-height: 400px; overflow-y: auto; line-height: 1.8; }
+        .diff-added { background-color: #d4edda !important; color: #155724 !important; font-weight: bold; padding: 2px 4px; border-radius: 3px; }
+        .diff-removed { background-color: #f8d7da !important; color: #721c24 !important; text-decoration: line-through; padding: 2px 4px; border-radius: 3px; }
+        .site-summary { font-size: 0.9rem; color: #6c757d; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1><i class="bi bi-list-check"></i> 사이트별 로그</h1>
+            <div>
+                <button class="btn btn-warning me-2" id="notificationStatusBtn" onclick="requestNotificationPermission()">
+                    <i class="bi bi-bell-slash" id="notificationIcon"></i> <span id="notificationStatusText">알림 권한 요청</span>
+                </button>
+                <div class="btn-group me-2">
+                    <button class="btn btn-sm btn-outline-secondary" id="refreshToggleBtn" onclick="toggleRefresh()">
+                        <i class="bi bi-pause-circle" id="refreshToggleIcon"></i> <span id="refreshToggleText">새로고침 중지</span>
+                    </button>
+                    <input type="number" class="form-control form-control-sm" id="refreshIntervalInput" value="1" min="1" max="60" style="width: 80px; display: inline-block;" onchange="updateRefreshInterval()">
+                    <span class="input-group-text" style="display: inline-block; padding: 0.375rem 0.5rem;">초</span>
+                </div>
+                <a href="index.html" class="btn btn-secondary me-2"><i class="bi bi-house"></i> 홈</a>
+                <a href="admin.html" class="btn btn-secondary me-2"><i class="bi bi-gear"></i> 관리자</a>
+                <a href="changes.html" class="btn btn-info me-2"><i class="bi bi-clock-history"></i> 전체 변화 로그</a>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0"><i class="bi bi-globe"></i> 모니터링 사이트</h5>
+                    </div>
+                    <div class="card-body p-0" id="siteList" style="max-height: 80vh; overflow-y: auto;">
+                        <div class="text-center p-5"><div class="spinner-border text-primary"></div></div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-5">
+                <div class="card">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0" id="selectedSiteTitle">
+                            <i class="bi bi-list-check"></i> 사이트를 선택하세요
+                        </h5>
+                    </div>
+                    <div class="card-body p-0" id="changeList" style="max-height: 80vh; overflow-y: auto;">
+                        <div id="attendanceInfoSite" style="background-color: #fff3cd; padding: 15px; border-bottom: 2px solid #ffc107; margin: 0; display: none;">
+                            <div class="text-center"><div class="spinner-border spinner-border-sm text-warning"></div> 출근부 정보 로딩 중...</div>
+                        </div>
+                        <div class="text-center p-5 text-muted">왼쪽에서 사이트를 선택하세요</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0"><i class="bi bi-clock-history"></i> 전체 변화 로그</h5>
+                    </div>
+                    <div class="card-body p-0" id="allChangeList" style="max-height: 80vh; overflow-y: auto;">
+                        <div class="text-center p-5"><div class="spinner-border text-success"></div></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let selectedSiteId = null;
+        
+        let refreshInterval = null;
+        let lastChangeId = 0;
+        let refreshEnabled = true;
+        let refreshIntervalMs = 1000; // 기본 1초
+        let notificationPermission = false;
+        let notifiedChangeIds = new Set(); // 이미 알림을 보낸 change_id 추적
+        
+        $(document).ready(function() {
+            if (typeof jQuery === 'undefined') {
+                document.getElementById('siteList').innerHTML = '<div class="alert alert-danger m-3">jQuery를 로드할 수 없습니다.</div>';
+                return;
+            }
+            
+            // 로컬 스토리지에서 설정 불러오기
+            const savedRefreshEnabled = localStorage.getItem('siteLogs_refreshEnabled');
+            const savedRefreshInterval = localStorage.getItem('siteLogs_refreshInterval');
+            
+            if (savedRefreshEnabled !== null) {
+                refreshEnabled = savedRefreshEnabled === 'true';
+            }
+            if (savedRefreshInterval !== null) {
+                refreshIntervalMs = parseInt(savedRefreshInterval) * 1000;
+                $('#refreshIntervalInput').val(refreshIntervalMs / 1000);
+            }
+            
+            updateRefreshToggleUI();
+            checkNotificationPermission();
+            
+            loadSites();
+            loadAllChanges(); // 초기 로드
+            
+            // 새 변화 체크 시작
+            checkNewChanges();
+            
+            // 실시간 업데이트 시작
+            startRefresh();
+            
+            // 페이지가 보이지 않을 때는 업데이트 중지
+            document.addEventListener('visibilitychange', function() {
+                if (document.hidden) {
+                    stopRefresh();
+                } else {
+                    if (refreshEnabled) {
+                        startRefresh();
+                    }
+                }
+            });
+        });
+        
+        function startRefresh() {
+            if (refreshInterval) {
+                clearInterval(refreshInterval);
+            }
+            if (refreshEnabled) {
+                refreshInterval = setInterval(function() {
+                    if (selectedSiteId) {
+                        loadSiteAttendance(selectedSiteId);
+                        loadSiteChanges(selectedSiteId);
+                    }
+                    // 전체 로그도 업데이트
+                    loadAllChanges();
+                    // 새 변화 체크
+                    checkNewChanges();
+                }, refreshIntervalMs);
+            }
+        }
+        
+        function stopRefresh() {
+            if (refreshInterval) {
+                clearInterval(refreshInterval);
+                refreshInterval = null;
+            }
+        }
+        
+        function toggleRefresh() {
+            refreshEnabled = !refreshEnabled;
+            localStorage.setItem('siteLogs_refreshEnabled', refreshEnabled);
+            
+            if (refreshEnabled) {
+                startRefresh();
+            } else {
+                stopRefresh();
+            }
+            
+            updateRefreshToggleUI();
+        }
+        
+        function updateRefreshInterval() {
+            const seconds = parseInt($('#refreshIntervalInput').val()) || 1;
+            if (seconds < 1) {
+                $('#refreshIntervalInput').val(1);
+                refreshIntervalMs = 1000;
+            } else {
+                refreshIntervalMs = seconds * 1000;
+            }
+            localStorage.setItem('siteLogs_refreshInterval', seconds);
+            
+            if (refreshEnabled) {
+                startRefresh();
+            }
+        }
+        
+        function updateRefreshToggleUI() {
+            if (refreshEnabled) {
+                $('#refreshToggleIcon').removeClass('bi-pause-circle').addClass('bi-play-circle');
+                $('#refreshToggleText').text('새로고침 중지');
+            } else {
+                $('#refreshToggleIcon').removeClass('bi-play-circle').addClass('bi-pause-circle');
+                $('#refreshToggleText').text('새로고침 시작');
+            }
+        }
+        
+        function checkNotificationPermission() {
+            if ('Notification' in window) {
+                if (Notification.permission === 'granted') {
+                    notificationPermission = true;
+                    updateNotificationUI('granted');
+                } else if (Notification.permission === 'denied') {
+                    notificationPermission = false;
+                    updateNotificationUI('denied');
+                } else {
+                    notificationPermission = false;
+                    updateNotificationUI('default');
+                }
+            } else {
+                updateNotificationUI('not-supported');
+            }
+        }
+        
+        function requestNotificationPermission() {
+            if (!('Notification' in window)) {
+                alert('이 브라우저는 알림을 지원하지 않습니다.');
+                return;
+            }
+            
+            if (Notification.permission === 'granted') {
+                alert('알림 권한이 이미 허용되어 있습니다.');
+                return;
+            }
+            
+            if (Notification.permission === 'denied') {
+                alert('알림 권한이 거부되었습니다. 브라우저 설정에서 알림 권한을 허용해주세요.');
+                return;
+            }
+            
+            Notification.requestPermission().then(function(permission) {
+                updateNotificationUI(permission);
+                if (permission === 'granted') {
+                    notificationPermission = true;
+                    alert('알림 권한이 허용되었습니다! 변화가 감지되면 알림이 표시됩니다.');
+                    showTestNotification();
+                } else {
+                    notificationPermission = false;
+                    alert('알림 권한이 거부되었습니다.');
+                }
+            }).catch(function(err) {
+                console.error('알림 권한 요청 실패:', err);
+                alert('알림 권한 요청에 실패했습니다.');
+            });
+        }
+        
+        function updateNotificationUI(permission) {
+            const icon = $('#notificationIcon');
+            const text = $('#notificationStatusText');
+            
+            if (permission === 'granted') {
+                icon.removeClass('bi-bell-slash').addClass('bi-bell-fill');
+                text.text('알림 활성화됨');
+            } else if (permission === 'denied') {
+                icon.removeClass('bi-bell-fill').addClass('bi-bell-slash');
+                text.text('알림 거부됨');
+            } else if (permission === 'not-supported') {
+                icon.removeClass('bi-bell-fill').addClass('bi-bell-slash');
+                text.text('알림 미지원');
+            } else {
+                icon.removeClass('bi-bell-fill').addClass('bi-bell-slash');
+                text.text('알림 권한 요청');
+            }
+        }
+        
+        function showTestNotification() {
+            if (Notification.permission === 'granted') {
+                const notification = new Notification('알림 테스트', {
+                    body: '알림이 정상적으로 작동합니다!',
+                    icon: '/favicon.ico'
+                });
+                setTimeout(() => notification.close(), 3000);
+            }
+        }
+        
+        function checkNewChanges() {
+            if (typeof jQuery === 'undefined') {
+                return;
+            }
+            
+            // 알림 권한 상태 재확인
+            if ('Notification' in window) {
+                notificationPermission = Notification.permission === 'granted';
+            }
+            
+            jQuery.ajax({
+                url: 'api/get_new_changes.php',
+                method: 'GET',
+                data: { last_change_id: lastChangeId },
+                dataType: 'json',
+                timeout: 5000,
+                success: function(response) {
+                    try {
+                        if (response && response.success && response.data && response.data.length > 0) {
+                            console.log('새로운 변화 감지:', response.data.length, '개');
+                            
+                            // 새로운 변화가 있으면 알림 표시 (중복 방지)
+                            response.data.forEach(function(change) {
+                                if (change.change_id > lastChangeId) {
+                                    lastChangeId = change.change_id;
+                                }
+                                
+                                // 선택된 사이트의 변화만 알림 표시
+                                if (selectedSiteId && change.site_id == selectedSiteId) {
+                                    // 이미 알림을 보낸 change_id는 건너뛰기
+                                    if (!notifiedChangeIds.has(change.change_id) && notificationPermission) {
+                                        notifiedChangeIds.add(change.change_id);
+                                        showNotification(change);
+                                    }
+                                }
+                            });
+                            
+                            // 페이지가 보이는 상태면 로그 새로고침
+                            if (!document.hidden && refreshEnabled) {
+                                if (selectedSiteId) {
+                                    loadSiteChanges(selectedSiteId);
+                                }
+                                loadAllChanges();
+                            }
+                        }
+                    } catch (error) {
+                        console.error('새 변화 처리 오류:', error);
+                    }
+                },
+                error: function(xhr, status, error) {
+                    // 조용히 실패 (에러 로그만)
+                    console.error('새 변화 체크 실패:', error);
+                }
+            });
+        }
+        
+        function showNotification(change) {
+            if (!notificationPermission) {
+                console.log('알림 권한이 없어 알림을 표시할 수 없습니다.');
+                return;
+            }
+            
+            if (Notification.permission !== 'granted') {
+                console.log('알림 권한이 허용되지 않았습니다.');
+                return;
+            }
+            
+            // 변화 요약 생성
+            let changeSummary = '내용 변경됨';
+            if (change.diff_html) {
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = change.diff_html;
+                const text = tempDiv.textContent || tempDiv.innerText || '';
+                changeSummary = text.substring(0, 100).trim();
+                if (text.length > 100) {
+                    changeSummary += '...';
+                }
+            }
+            
+            const title = '🔔 변화 감지: ' + (change.site_name || '알 수 없음');
+            const body = changeSummary + '\n\n시간: ' + (change.detected_at || '방금 전');
+            
+            try {
+                const notification = new Notification(title, {
+                    body: body,
+                    icon: '/favicon.ico',
+                    tag: 'change_' + change.change_id,
+                    requireInteraction: false
+                });
+                
+                notification.onclick = function() {
+                    window.focus();
+                    notification.close();
+                };
+                
+                // 5초 후 자동 닫기
+                setTimeout(() => notification.close(), 5000);
+                
+                console.log('알림 표시됨:', title);
+            } catch (error) {
+                console.error('알림 표시 실패:', error);
+            }
+        }
+        
+        function loadSites() {
+            jQuery.ajax({
+                url: 'api/get_sites.php',
+                method: 'GET',
+                dataType: 'json',
+                success: function(response) {
+                    if (response && response.success) {
+                        renderSites(response.data);
+                    } else {
+                        jQuery('#siteList').html('<div class="alert alert-danger m-3">사이트 목록 로딩 실패</div>');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('사이트 목록 로딩 실패:', error);
+                    jQuery('#siteList').html('<div class="alert alert-danger m-3">서버 연결 실패</div>');
+                }
+            });
+        }
+        
+        function renderSites(sites) {
+            if (!sites || sites.length === 0) {
+                jQuery('#siteList').html('<div class="text-center p-5 text-muted">등록된 사이트가 없습니다.</div>');
+                return;
+            }
+            
+            let html = '';
+            sites.forEach(function(site) {
+                html += `
+                    <div class="site-list-item" onclick="selectSite(${site.site_id}, '${escapeHtml(site.site_name)}')" id="site-${site.site_id}">
+                        <h6 class="mb-1">${escapeHtml(site.site_name)}</h6>
+                        <p class="mb-1 site-summary"><small>${escapeHtml(site.site_url)}</small></p>
+                        <p class="mb-0 site-summary"><small>마지막 체크: ${site.last_check_time || '아직 체크되지 않음'}</small></p>
+                    </div>
+                `;
+            });
+            jQuery('#siteList').html(html);
+        }
+        
+        function selectSite(siteId, siteName) {
+            selectedSiteId = siteId;
+            
+            // 활성 상태 업데이트
+            jQuery('.site-list-item').removeClass('active');
+            jQuery('#site-' + siteId).addClass('active');
+            
+            // 제목 업데이트
+            jQuery('#selectedSiteTitle').html(`<i class="bi bi-list-check"></i> ${escapeHtml(siteName)} - 변화 로그`);
+            
+            // 출근부 정보 로드
+            loadSiteAttendance(siteId);
+            
+            // 변화 로그 로드
+            loadSiteChanges(siteId);
+        }
+        
+        function loadSiteChanges(siteId) {
+            jQuery('#changeList').html('<div class="text-center p-5"><div class="spinner-border text-info"></div></div>');
+            
+            jQuery.ajax({
+                url: 'api/get_changes.php',
+                method: 'GET',
+                data: { site_id: siteId, limit: 100 },
+                dataType: 'json',
+                success: function(response) {
+                    if (response && response.success) {
+                        renderSiteChanges(response.data);
+                    } else {
+                        jQuery('#changeList').html('<div class="alert alert-danger m-3">데이터 로딩 실패</div>');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('변화 로그 로딩 실패:', error);
+                    jQuery('#changeList').html('<div class="alert alert-danger m-3">서버 연결 실패</div>');
+                }
+            });
+        }
+        
+        function loadSiteAttendance(siteId) {
+            if (typeof jQuery === 'undefined') return;
+            
+            jQuery('#attendanceInfoSite').show();
+            
+            const today = new Date().toISOString().split('T')[0];
+            jQuery.ajax({
+                url: 'api/get_attendance.php',
+                method: 'GET',
+                data: { date: today, site_id: siteId },
+                dataType: 'json',
+                success: function(response) {
+                    if (response && response.success) {
+                        renderSiteAttendanceInfo(response.data);
+                    } else {
+                        jQuery('#attendanceInfoSite').html('<div style="text-align: center; padding: 10px; color: #856404;"><i class="bi bi-info-circle"></i> 출근인원을 찾지 못했습니다.</div>');
+                    }
+                },
+                error: function() {
+                    jQuery('#attendanceInfoSite').html('<div style="text-align: center; padding: 10px; color: #856404;"><i class="bi bi-info-circle"></i> 출근인원을 찾지 못했습니다.</div>');
+                }
+            });
+        }
+        
+        function renderSiteAttendanceInfo(attendanceRecords) {
+            if (typeof jQuery === 'undefined') return;
+            
+            if (!attendanceRecords || attendanceRecords.length === 0) {
+                jQuery('#attendanceInfoSite').html('<div style="text-align: center; padding: 10px; color: #856404;"><i class="bi bi-info-circle"></i> 출근인원을 찾지 못했습니다.</div>');
+                return;
+            }
+            
+            let html = '<div style="font-weight: bold; margin-bottom: 10px; color: #856404;"><i class="bi bi-calendar-check"></i> 오늘 출근부 (' + new Date().toLocaleDateString('ko-KR') + ')</div>';
+            let staffList = [];
+            attendanceRecords.forEach(function(record) {
+                const times = record.work_times || '';
+                staffList.push(escapeHtml(record.staff_name) + ' ' + escapeHtml(times));
+            });
+            html += '<div>' + staffList.join(' | ') + '</div>';
+            
+            jQuery('#attendanceInfoSite').html(html);
+        }
+
+        function extractAttendanceSummaryFromDiff(diffHtml) {
+            if (!diffHtml) return null;
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = diffHtml;
+            const block = tempDiv.querySelector('.attendance-summary-block');
+            if (!block) return null;
+            
+            const initialValueEl = block.querySelector('.attendance-line[data-kind="initial"] .attendance-value');
+            const currentLineEls = block.querySelectorAll('.attendance-line[data-kind="current"]');
+            
+            const entries = [];
+            currentLineEls.forEach(function(line) {
+                const valueEl = line.querySelector('.attendance-value');
+                const labelEl = line.querySelector('.attendance-label');
+                let time = line.getAttribute('data-time') || '';
+                if (!time && labelEl) {
+                    const match = labelEl.textContent.match(/\[(\d{2}:\d{2}:\d{2})/);
+                    if (match) {
+                        time = match[1];
+                    }
+                }
+                entries.push({
+                    time,
+                    html: valueEl ? valueEl.innerHTML : line.innerHTML
+                });
+            });
+            
+            return {
+                initialHtml: initialValueEl ? initialValueEl.innerHTML : '',
+                entries
+            };
+        }
+
+        function buildAttendanceSummaries(changes) {
+            const summaries = new Array(changes.length).fill(null);
+            if (!changes || changes.length === 0) return summaries;
+            
+            let initialHtml = '';
+            const timelineEntries = [];
+            const seenTimes = new Set();
+            
+            // oldest -> newest to accumulate timeline
+            for (let idx = changes.length - 1; idx >= 0; idx--) {
+                const change = changes[idx];
+                const info = extractAttendanceSummaryFromDiff(change.diff_html);
+                if (!info) {
+                    continue;
+                }
+                
+                if (info.initialHtml && !initialHtml) {
+                    initialHtml = info.initialHtml;
+                }
+                
+                info.entries.forEach(function(entry) {
+                    if (entry.time && !seenTimes.has(entry.time)) {
+                        seenTimes.add(entry.time);
+                        timelineEntries.push(entry);
+                    }
+                });
+                
+                if (initialHtml) {
+                    const parts = [];
+                    parts.push(`<div class="attendance-line-display"><span class="attendance-label">[최초출근인원]</span> : <span class="attendance-value">${initialHtml}</span></div>`);
+                    timelineEntries.forEach(function(entry) {
+                        const label = entry.time ? `[${entry.time} 예약가능인원]` : '[예약가능인원]';
+                        parts.push(`<div class="attendance-line-display"><span class="attendance-label">${label}</span> : <span class="attendance-value">${entry.html}</span></div>`);
+                    });
+                    summaries[idx] = `<div class="attendance-summary-view">${parts.join('')}</div>`;
+                }
+            }
+            
+            return summaries;
+        }
+
+        function renderSiteChanges(changes) {
+            if (!changes || changes.length === 0) {
+                // 출근부 정보는 유지
+                const attendanceHtml = jQuery('#attendanceInfoSite').html();
+                jQuery('#changeList').html(attendanceHtml + '<div class="text-center p-5 text-muted">이 사이트의 변화 로그가 없습니다.</div>');
+                return;
+            }
+            const attendanceSummaries = buildAttendanceSummaries(changes);
+            
+            let html = '';
+            changes.forEach(function(change, index) {
+                const unreadClass = change.is_read == '0' ? 'unread' : '';
+                const readBadge = change.is_read == '0' ? '<span class="badge bg-warning text-dark">NEW</span>' : '<span class="badge bg-secondary">읽음</span>';
+                
+                // 변화 요약 (출근부 우선)
+                let changeSummary = attendanceSummaries[index];
+                if (!changeSummary) {
+                    changeSummary = formatChangeSummary(change);
+                }
+                if (!changeSummary || changeSummary.trim() === '') {
+                    changeSummary = '<span class="text-muted">내용 변경됨</span>';
+                }
+                
+                // 시간 포맷팅 (YYYY-MM-DD HH:MM:SS -> 11월18일 HH:MM:SS)
+                let dateTimeStr = '알 수 없음';
+                if (change.detected_at) {
+                    const parts = change.detected_at.split(' ');
+                    if (parts.length >= 2) {
+                        const datePart = parts[0]; // YYYY-MM-DD
+                        const timePart = parts[1]; // HH:MM:SS
+                        const dateMatch = datePart.match(/(\d{4})-(\d{2})-(\d{2})/);
+                        if (dateMatch) {
+                            const month = parseInt(dateMatch[2]);
+                            const day = parseInt(dateMatch[3]);
+                            dateTimeStr = `${month}월${day}일 ${timePart}`;
+                        } else {
+                            dateTimeStr = timePart;
+                        }
+                    } else {
+                        dateTimeStr = change.detected_at;
+                    }
+                }
+                
+                const siteName = change.site_name || '알 수 없음';
+                
+                html += `
+                    <div class="change-item ${unreadClass}">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <div>
+                                <h6 class="mb-1">${readBadge} <strong>${escapeHtml(siteName)}</strong> <span class="text-muted">${dateTimeStr}</span></h6>
+                            </div>
+                        </div>
+                        <div class="change-summary mb-2" style="font-size: 1.1rem; font-weight: 500;">
+                            ${changeSummary}
+                        </div>
+                        <details>
+                            <summary class="text-muted" style="cursor: pointer; font-size: 0.9rem;">▶ 상세 내용 보기</summary>
+                            <div class="diff-content mt-2">${change.diff_html || '변화 내용 없음'}</div>
+                        </details>
+                    </div>
+                `;
+            });
+            // 출근부 정보는 유지하고 변화 로그만 추가
+            const attendanceHtml = jQuery('#attendanceInfoSite').html();
+            jQuery('#changeList').html(attendanceHtml + html);
+        }
+        
+        function formatChangeSummary(change) {
+            if (!change || !change.diff_html) {
+                return '<span class="text-muted">변화 내용 없음</span>';
+            }
+            
+            try {
+                // diff_html 파싱하여 출근부 정보 추출
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = change.diff_html || '';
+                
+                // 출근부 정보가 있는지 확인 (최초출근인원 또는 예약가능인원이 포함된 div)
+                const attendanceDivs = tempDiv.querySelectorAll('div[style*="background-color: #f8f9fa"]');
+                if (attendanceDivs.length > 0) {
+                    // 출근부 정보가 있으면 그대로 반환
+                    let attendanceHtml = '';
+                    attendanceDivs.forEach(div => {
+                        attendanceHtml += div.outerHTML;
+                    });
+                    return attendanceHtml;
+                }
+                
+                // 출근부 정보가 없으면 기존 방식으로 처리
+            
+            // 모든 노드를 순회하여 변화 전후 텍스트 구성
+            let beforeParts = [];
+            let afterParts = [];
+            
+            function extractParts(node) {
+                if (node.nodeType === 3) { // 텍스트 노드
+                    const text = node.textContent.trim();
+                    if (text) {
+                        beforeParts.push({ type: 'text', content: text });
+                        afterParts.push({ type: 'text', content: text });
+                    }
+                } else if (node.nodeType === 1) { // 요소 노드
+                    const className = node.className || '';
+                    const text = node.textContent.trim();
+                    
+                    if (className.includes('diff-removed')) {
+                        // 삭제된 부분만 beforeParts에 추가
+                        beforeParts.push({ type: 'removed', content: text });
+                    } else if (className.includes('diff-added')) {
+                        // 추가된 부분만 afterParts에 추가
+                        afterParts.push({ type: 'added', content: text });
+                    } else {
+                        // 자식 노드 재귀 처리
+                        for (let child of node.childNodes) {
+                            extractParts(child);
+                        }
+                    }
+                }
+            }
+            
+            extractParts(tempDiv);
+            
+            // 변화 전후 텍스트 구성
+            let beforeText = '';
+            let afterText = '';
+            let removedOnly = '';
+            let addedOnly = '';
+            
+            beforeParts.forEach(part => {
+                if (part.type === 'text') {
+                    beforeText += part.content + ' ';
+                } else if (part.type === 'removed') {
+                    beforeText += part.content + ' ';
+                    removedOnly = part.content;
+                }
+            });
+            
+            afterParts.forEach(part => {
+                if (part.type === 'text') {
+                    afterText += part.content + ' ';
+                } else if (part.type === 'added') {
+                    afterText += part.content + ' ';
+                    addedOnly = part.content;
+                }
+            });
+            
+            beforeText = beforeText.trim();
+            afterText = afterText.trim();
+            
+            // 실제로 변경된 부분만 추출 (공통 부분 제외)
+            let summary = '';
+            if (removedOnly && addedOnly) {
+                // 공통 부분 찾기 (LCS)
+                const commonPrefix = findCommonPrefix(removedOnly, addedOnly);
+                const commonSuffix = findCommonSuffix(removedOnly, addedOnly);
+                
+                let removedDiff = removedOnly;
+                let addedDiff = addedOnly;
+                
+                if (commonPrefix) {
+                    removedDiff = removedOnly.substring(commonPrefix.length);
+                    addedDiff = addedOnly.substring(commonPrefix.length);
+                }
+                if (commonSuffix && removedDiff.endsWith(commonSuffix) && addedDiff.endsWith(commonSuffix)) {
+                    removedDiff = removedDiff.substring(0, removedDiff.length - commonSuffix.length);
+                    addedDiff = addedDiff.substring(0, addedDiff.length - commonSuffix.length);
+                }
+                
+                // beforeText에서 removedOnly 부분을 찾아서 줄처리
+                let beforeDisplay = beforeText;
+                if (beforeDisplay.includes(removedOnly)) {
+                    beforeDisplay = beforeDisplay.replace(
+                        removedOnly, 
+                        removedOnly.substring(0, removedOnly.length - removedDiff.length) + 
+                        `<u class="text-danger">${escapeHtml(removedDiff)}</u>`
+                    );
+                }
+                
+                // afterText는 removedOnly 제거하고 addedOnly 추가
+                let afterDisplay = afterText.replace(removedOnly, '').trim();
+                if (afterDisplay.includes(addedOnly)) {
+                    // addedOnly에서 실제 추가된 부분만 강조
+                    const addedHighlight = addedOnly.substring(addedOnly.length - addedDiff.length);
+                    afterDisplay = afterDisplay.replace(
+                        addedOnly,
+                        addedOnly.substring(0, addedOnly.length - addedDiff.length) + 
+                        `<span class="text-success fw-bold">${escapeHtml(addedHighlight)}</span>`
+                    );
+                }
+                
+                summary = `${beforeDisplay} → ${afterDisplay}`;
+            } else if (removedOnly) {
+                let beforeDisplay = beforeText;
+                if (beforeDisplay.includes(removedOnly)) {
+                    beforeDisplay = beforeDisplay.replace(
+                        removedOnly,
+                        `<u class="text-danger">${escapeHtml(removedOnly)}</u>`
+                    );
+                }
+                summary = `${beforeDisplay} → <span class="text-muted">(삭제됨)</span>`;
+            } else if (addedOnly) {
+                let afterDisplay = afterText;
+                if (afterDisplay.includes(addedOnly)) {
+                    afterDisplay = afterDisplay.replace(
+                        addedOnly,
+                        `<span class="text-success fw-bold">${escapeHtml(addedOnly)}</span>`
+                    );
+                }
+                summary = `${escapeHtml(beforeText)} → ${afterDisplay}`;
+            } else {
+                // 출근부 정보가 없고 다른 변화도 없으면 빈 문자열 반환
+                return '';
+            }
+            
+            return summary;
+            } catch (error) {
+                console.error('formatChangeSummary error:', error);
+                return '<span class="text-muted">변화 내용 파싱 오류</span>';
+            }
+        }
+        
+        function findCommonPrefix(str1, str2) {
+            let prefix = '';
+            const minLen = Math.min(str1.length, str2.length);
+            for (let i = 0; i < minLen; i++) {
+                if (str1[i] === str2[i]) {
+                    prefix += str1[i];
+                } else {
+                    break;
+                }
+            }
+            return prefix;
+        }
+        
+        function findCommonSuffix(str1, str2) {
+            let suffix = '';
+            const minLen = Math.min(str1.length, str2.length);
+            for (let i = 1; i <= minLen; i++) {
+                if (str1[str1.length - i] === str2[str2.length - i]) {
+                    suffix = str1[str1.length - i] + suffix;
+                } else {
+                    break;
+                }
+            }
+            return suffix;
+        }
+        
+        function loadAllChanges() {
+            jQuery.ajax({
+                url: 'api/get_changes.php',
+                method: 'GET',
+                data: { limit: 50 },
+                dataType: 'json',
+                success: function(response) {
+                    if (response && response.success) {
+                        renderAllChanges(response.data);
+                    } else {
+                        jQuery('#allChangeList').html('<div class="alert alert-danger m-3">데이터 로딩 실패</div>');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('전체 변화 로그 로딩 실패:', error);
+                    jQuery('#allChangeList').html('<div class="alert alert-danger m-3">서버 연결 실패</div>');
+                }
+            });
+        }
+        
+        function renderAllChanges(changes) {
+            if (!changes || changes.length === 0) {
+                jQuery('#allChangeList').html('<div class="text-center p-5 text-muted">변화 로그가 없습니다.</div>');
+                return;
+            }
+            
+            let html = '';
+            changes.forEach(function(change) {
+                const unreadClass = change.is_read == '0' ? 'unread' : '';
+                const readBadge = change.is_read == '0' ? '<span class="badge bg-warning text-dark">NEW</span>' : '';
+                
+                // 시간 포맷팅 (YYYY-MM-DD HH:MM:SS -> HH:MM:SS)
+                const timeOnly = change.detected_at ? change.detected_at.split(' ')[1] || change.detected_at : '알 수 없음';
+                
+                html += `
+                    <div class="change-item ${unreadClass}" style="padding: 15px; border-bottom: 1px solid #e9ecef;">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <div>
+                                <h6 class="mb-1">${readBadge} <strong>${escapeHtml(change.site_name || '알 수 없음')}</strong> <span class="text-muted">${timeOnly}</span></h6>
+                            </div>
+                        </div>
+                        <div class="change-summary mb-2" style="font-size: 0.95rem;">
+                            ${formatChangeSummary(change)}
+                        </div>
+                        <details>
+                            <summary class="text-muted" style="cursor: pointer; font-size: 0.85rem;">상세 내용 보기</summary>
+                            <div class="diff-content mt-2" style="font-size: 0.85rem;">${change.diff_html || '변화 내용 없음'}</div>
+                        </details>
+                    </div>
+                `;
+            });
+            jQuery('#allChangeList').html(html);
+        }
+        
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>
+

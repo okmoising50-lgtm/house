@@ -1,2 +1,68 @@
-PHP_FLAG register_globals ON
-PHP_VALUE mysql.default_charset UTF8
+# 웹 모니터링 시스템 .htaccess (카페24)
+
+# PHP 설정
+php_flag display_errors Off
+php_value upload_max_filesize 10M
+php_value post_max_size 10M
+
+# 로그 및 캐시 디렉토리 접근 차단
+<FilesMatch "^(logs|cache)">
+    Order Allow,Deny
+    Deny from all
+</FilesMatch>
+
+# SQL 파일 접근 차단
+<FilesMatch "\.(sql)$">
+    Order Allow,Deny
+    Deny from all
+</FilesMatch>
+
+# 설정 파일 직접 접근 차단
+<FilesMatch "^(config\.php|monitor_lib\.php)$">
+    Order Allow,Deny
+    Deny from all
+</FilesMatch>
+
+# Python 파일 접근 차단
+<FilesMatch "\.(py)$">
+    Order Allow,Deny
+    Deny from all
+</FilesMatch>
+
+# 디렉토리 리스팅 비활성화
+Options -Indexes
+
+# HTML 파일 접근 허용 (logs.html 포함)
+<FilesMatch "\.(html|htm)$">
+    <IfModule mod_authz_core.c>
+        Require all granted
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order Allow,Deny
+        Allow from all
+    </IfModule>
+</FilesMatch>
+
+# UTF-8 인코딩
+AddDefaultCharset UTF-8
+
+# MIME 타입
+<IfModule mod_mime.c>
+    AddType application/json .json
+    AddType text/html .html
+    AddType application/x-httpd-php .php
+</IfModule>
+
+# Gzip 압축
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript application/javascript application/json
+</IfModule>
+
+# 보안 헤더
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "SAMEORIGIN"
+    Header set X-XSS-Protection "1; mode=block"
+</IfModule>
+
+

@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>웹 모니터223s2223링 시스템 - 카페24</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .welcome-container {
+            max-width: 800px;
+            background: white;
+            border-radius: 20px;
+            padding: 60px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            text-align: center;
+        }
+        .logo {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+        h1 { color: #333; font-size: 2.5rem; margin-bottom: 20px; }
+        .subtitle { color: #666; font-size: 1.2rem; margin-bottom: 40px; }
+        .btn-large { padding: 15px 40px; font-size: 1.2rem; border-radius: 50px; margin: 10px; }
+    </style>
+</head>
+<body>
+    <div class="welcome-container">
+        <div class="logo"><i class="bi bi-globe"></i></div>
+        <h1>웹 모니터링 시스템</h1>
+        <p class="subtitle">카페24 PHP 호스팅 + GCP 크롤러</p>
+        <div class="d-grid gap-2" style="max-width: 300px; margin: 0 auto;">
+            <a href="admin.html" class="btn btn-primary btn-large"><i class="bi bi-gear"></i> 관리자</a>
+            <a href="changes.html" class="btn btn-success btn-large"><i class="bi bi-clock-history"></i> 변화 로그</a>
+            <a href="attendance.html" class="btn btn-warning btn-large"><i class="bi bi-calendar-check"></i> 일자별 출근부</a>
+            <a href="reservation.html" class="btn btn-info btn-large"><i class="bi bi-calendar-event"></i> 예약 관리</a>
+        </div>
+        <div class="mt-5">
+            <h5>특징</h5>
+            <ul class="text-start" style="display: inline-block;">
+                <li>✅ 카페24 호스팅에서 관리자 페이지 운영2</li>
+                <li>✅ GCP 서버에서 5초 간격 크롤링</li>
+                <li>✅ 변경사항 자동 감지 및 강조 표시</li>
+                <li>✅ 자동 리다이렉트 추적</li>
+                <li>✅ 다중 사이트 모니터링</li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>
+
+

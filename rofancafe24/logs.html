@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>웹 모니터링 변화 로그 - 카페24</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <style>
+        body { background-color: #f8f9fa; padding: 20px; }
+        .container { max-width: 1600px; }
+        .card { margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .change-item { border-bottom: 1px solid #e9ecef; padding: 20px; }
+        .change-item.unread { background-color: #fff3cd; }
+        .diff-content { background-color: #f8f9fa; padding: 15px; border-radius: 5px; max-height: 400px; overflow-y: auto; line-height: 1.8; }
+        .diff-added { background-color: #d4edda !important; color: #155724 !important; font-weight: bold; padding: 2px 4px; border-radius: 3px; }
+        .diff-removed { background-color: #f8d7da !important; color: #721c24 !important; text-decoration: line-through; padding: 2px 4px; border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1><i class="bi bi-clock-history"></i> 웹 모니터링 변화 로그</h1>
+            <div>
+                <a href="index.html" class="btn btn-secondary me-2"><i class="bi bi-house"></i> 홈</a>
+                <a href="admin.html" class="btn btn-secondary me-2"><i class="bi bi-gear"></i> 관리자</a>
+                <button class="btn btn-warning me-2" id="notificationStatusBtn" onclick="requestNotificationPermission()">
+                    <i class="bi bi-bell-slash" id="notificationIcon"></i> <span id="notificationStatusText">알림 권한 요청</span>
+                </button>
+                <button class="btn btn-success" onclick="loadChanges()"><i class="bi bi-arrow-clockwise"></i> 새로고침</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-list-check"></i> 변화 로그</h5>
+                <button class="btn btn-warning btn-sm" id="notificationStatusBtn2" onclick="requestNotificationPermission()">
+                    <i class="bi bi-bell-slash" id="notificationIcon2"></i> <span id="notificationStatusText2">알림 권한 요청</span>
+                </button>
+            </div>
+            <div class="card-body p-0" id="changeList">
+                <div class="text-center p-5"><div class="spinner-border text-info"></div></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let lastChangeId = 0;
+        let notificationPermission = false;
+        
+        $(document).ready(function() {
+            checkNotificationPermission();
+            loadChanges();
+            // 5초마다 새로운 변화 체크
+            setInterval(checkNewChanges, 5000);
+        });
+        
+        function checkNotificationPermission() {
+            if ('Notification' in window) {
+                if (Notification.permission === 'granted') {
+                    notificationPermission = true;
+                    updateNotificationUI('granted');
+                } else if (Notification.permission === 'denied') {
+                    notificationPermission = false;
+                    updateNotificationUI('denied');
+                } else {
+                    notificationPermission = false;
+                    updateNotificationUI('default');
+                }
+            } else {
+                updateNotificationUI('not-supported');
+            }
+        }
+        
+        function requestNotificationPermission() {
+            if (!('Notification' in window)) {
+                alert('이 브라우저는 알림을 지원하지 않습니다.');
+                return;
+            }
+            
+            if (Notification.permission === 'granted') {
+                alert('알림 권한이 이미 허용되어 있습니다.');
+                return;
+            }
+            
+            if (Notification.permission === 'denied') {
+                alert('알림 권한이 거부되었습니다. 브라우저 설정에서 알림 권한을 허용해주세요.');
+                return;
+            }
+            
+            Notification.requestPermission().then(function(permission) {
+                notificationPermission = permission === 'granted';
+                updateNotificationUI(permission);
+                
+                if (notificationPermission) {
+                    alert('알림 권한이 허용되었습니다! 변화가 감지되면 알림이 표시됩니다.');
+                    // 테스트 알림 표시
+                    showTestNotification();
+                } else {
+                    alert('알림 권한이 거부되었습니다.');
+                }
+            }).catch(function(err) {
+                console.error('알림 권한 요청 실패:', err);
+                alert('알림 권한 요청에 실패했습니다.');
+            });
+        }
+        
+        function updateNotificationUI(permission) {
+            // 상단 버튼 업데이트
+            const btn = $('#notificationStatusBtn');
+            const icon = $('#notificationIcon');
+            const text = $('#notificationStatusText');
+            
+            // 카드 헤더 버튼 업데이트
+            const btn2 = $('#notificationStatusBtn2');
+            const icon2 = $('#notificationIcon2');
+            const text2 = $('#notificationStatusText2');
+            
+            if (permission === 'granted') {
+                btn.removeClass('btn-warning').addClass('btn-success');
+                icon.removeClass('bi-bell-slash').addClass('bi-bell-fill');
+                text.text('알림 활성화됨');
+                
+                btn2.removeClass('btn-warning').addClass('btn-success');
+                icon2.removeClass('bi-bell-slash').addClass('bi-bell-fill');
+                text2.text('알림 활성화됨');
+            } else if (permission === 'denied') {
+                btn.removeClass('btn-warning btn-success').addClass('btn-danger');
+                icon.removeClass('bi-bell-fill').addClass('bi-bell-slash');
+                text.text('알림 거부됨');
+                
+                btn2.removeClass('btn-warning btn-success').addClass('btn-danger');
+                icon2.removeClass('bi-bell-fill').addClass('bi-bell-slash');
+                text2.text('알림 거부됨');
+            } else if (permission === 'not-supported') {
+                btn.removeClass('btn-warning btn-success').addClass('btn-secondary');
+                icon.removeClass('bi-bell-fill').addClass('bi-bell-slash');
+                text.text('알림 미지원');
+                
+                btn2.removeClass('btn-warning btn-success').addClass('btn-secondary');
+                icon2.removeClass('bi-bell-fill').addClass('bi-bell-slash');
+                text2.text('알림 미지원');
+            } else {
+                btn.removeClass('btn-success btn-danger').addClass('btn-warning');
+                icon.removeClass('bi-bell-fill').addClass('bi-bell-slash');
+                text.text('알림 권한 요청');
+                
+                btn2.removeClass('btn-success btn-danger').addClass('btn-warning');
+                icon2.removeClass('bi-bell-fill').addClass('bi-bell-slash');
+                text2.text('알림 권한 요청');
+            }
+        }
+        
+        function showTestNotification() {
+            if (notificationPermission) {
+                const notification = new Notification('알림 테스트', {
+                    body: '알림이 정상적으로 작동합니다!',
+                    icon: 'https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/icons/globe.svg',
+                    tag: 'test-notification'
+                });
+                
+                setTimeout(function() {
+                    notification.close();
+                }, 3000);
+            }
+        }
+        
+        function checkNewChanges() {
+            // 알림 권한 상태 재확인
+            if ('Notification' in window) {
+                notificationPermission = Notification.permission === 'granted';
+            }
+            
+            $.ajax({
+                url: 'api/get_new_changes.php',
+                method: 'GET',
+                data: { last_change_id: lastChangeId },
+                dataType: 'json',
+                success: function(response) {
+                    if (response && response.success && response.data && response.data.length > 0) {
+                        console.log('새로운 변화 감지:', response.data.length, '개');
+                        
+                        // 새로운 변화가 있으면 알림 표시
+                        response.data.forEach(function(change) {
+                            if (change.change_id > lastChangeId) {
+                                lastChangeId = change.change_id;
+                            }
+                            
+                            if (notificationPermission) {
+                                showNotification(change);
+                            }
+                        });
+                        
+                        // 페이지가 보이는 상태면 로그 새로고침
+                        if (!document.hidden) {
+                            loadChanges();
+                        }
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('새 변화 체크 실패:', error);
+                }
+            });
+        }
+        
+        function showNotification(change) {
+            if (!notificationPermission) {
+                console.log('알림 권한이 없어 알림을 표시할 수 없습니다.');
+                return;
+            }
+            
+            if (Notification.permission !== 'granted') {
+                console.log('알림 권한이 허용되지 않았습니다.');
+                return;
+            }
+            
+            const title = '🔔 변화 감지: ' + (change.site_name || '알 수 없음');
+            const body = '새로운 변화가 감지되었습니다.\n시간: ' + (change.detected_at || '방금 전');
+            
+            try {
+                const notification = new Notification(title, {
+                    body: body,
+                    icon: 'https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/icons/globe.svg',
+                    badge: 'https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/icons/bell-fill.svg',
+                    tag: 'monitor-change-' + change.change_id,
+                    requireInteraction: false
+                });
+                
+                notification.onclick = function() {
+                    window.focus();
+                    notification.close();
+                };
+                
+                // 10초 후 자동 닫기
+                setTimeout(function() {
+                    notification.close();
+                }, 10000);
+                
+                console.log('알림 표시됨:', title);
+            } catch (error) {
+                console.error('알림 표시 실패:', error);
+            }
+        }
+
+        function loadChanges() {
+            $.ajax({
+                url: 'api/get_changes.php',
+                method: 'GET',
+                data: { limit: 100 },
+                dataType: 'json',
+                success: function(response) {
+                    if (response && response.success) {
+                        renderChanges(response.data);
+                        // 마지막 change_id 업데이트
+                        if (response.data && response.data.length > 0) {
+                            lastChangeId = Math.max(lastChangeId, response.data[0].change_id);
+                        }
+                    } else {
+                        $('#changeList').html('<div class="alert alert-danger m-3">데이터 로딩 실패: ' + (response?.message || '알 수 없는 오류') + '</div>');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('AJAX Error:', error);
+                    let errorMsg = '서버 연결 실패';
+                    try {
+                        const response = JSON.parse(xhr.responseText);
+                        if (response && response.message) {
+                            errorMsg = response.message;
+                        }
+                    } catch (e) {
+                        if (xhr.responseText) {
+                            errorMsg = xhr.responseText.substring(0, 200);
+                        }
+                    }
+                    $('#changeList').html('<div class="alert alert-danger m-3">데이터 로딩 실패: ' + errorMsg + '</div>');
+                }
+            });
+        }
+
+        function renderChanges(changes) {
+            if (!changes || changes.length === 0) {
+                $('#changeList').html('<div class="text-center p-5 text-muted">변화 로그가 없습니다.</div>');
+                return;
+            }
+            let html = '';
+            changes.forEach(function(change) {
+                const unreadClass = change.is_read == '0' ? 'unread' : '';
+                const readBadge = change.is_read == '0' ? '<span class="badge bg-warning text-dark">NEW</span>' : '<span class="badge bg-secondary">읽음</span>';
+                html += `
+                    <div class="change-item ${unreadClass}">
+                        <h5 class="mb-2"><i class="bi bi-exclamation-triangle-fill text-warning"></i> ${escapeHtml(change.site_name)} ${readBadge}</h5>
+                        <p class="text-muted mb-2"><i class="bi bi-calendar-event"></i> ${change.detected_at}</p>
+                        <div class="diff-content">${change.diff_html}</div>
+                    </div>
+                `;
+            });
+            $('#changeList').html(html);
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>
+
